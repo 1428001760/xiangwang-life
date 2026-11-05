@@ -1,5 +1,5 @@
 
-# hm-dianping 项目链路回顾文档（技术栈 → 核心模块 → 请求流转 → 关键依赖 → 核心业务逻辑）
+# xiangwang-life 项目链路回顾文档（技术栈 → 核心模块 → 请求流转 → 关键依赖 → 核心业务逻辑）
 
 > 目标：把本仓库的“从请求进来到落库/落缓存”的主链路一次性串起来，并在每个环节标注**代码入口**与**关键设计点**，方便后续复盘学习。
 
@@ -18,12 +18,12 @@
 ### 1.2 Web / MVC
 - Spring Web（REST API）
   - 依赖入口：`pom.xml` → `spring-boot-starter-web`
-  - 控制器入口：`src/main/java/com/hmdp/controller/*Controller.java`
+  - 控制器入口：`src/main/java/com/xiangwang/controller/*Controller.java`
 - 拦截器链（鉴权 + Token 续期）
-  - 注册入口：`src/main/java/com/hmdp/config/MvcConfig.java`
+  - 注册入口：`src/main/java/com/xiangwang/config/MvcConfig.java`
   - 实现入口：
-    - `src/main/java/com/hmdp/utils/RefreshTokenInterceptor.java`
-    - `src/main/java/com/hmdp/utils/LoginInterceptor.java`
+    - `src/main/java/com/xiangwang/utils/RefreshTokenInterceptor.java`
+    - `src/main/java/com/xiangwang/utils/LoginInterceptor.java`
 
 ### 1.3 数据层
 - MySQL + JDBC Driver
@@ -31,8 +31,8 @@
   - 配置入口：`src/main/resources/application.yml` → `spring.datasource.*`
 - ORM：MyBatis-Plus
   - 依赖入口：`pom.xml` → `mybatis-plus-boot-starter`
-  - 全局插件配置入口：`src/main/java/com/hmdp/config/MybatisConfig.java`
-  - Mapper 扫描入口：`src/main/java/com/hmdp/HmDianPingApplication.java`（`@MapperScan("com.hmdp.mapper")`）
+  - 全局插件配置入口：`src/main/java/com/xiangwang/config/MybatisConfig.java`
+  - Mapper 扫描入口：`src/main/java/com/xiangwang/XiangWangApplication.java`（`@MapperScan("com.xiangwang.mapper")`）
   - XML Mapper：`src/main/resources/mapper/*.xml`（示例：`VoucherMapper.xml`）
 
 ### 1.4 Redis 与分布式能力
@@ -42,7 +42,7 @@
   - 说明：本仓库依赖使用 Jedis，但 `application.yml` 中仍保留了 `lettuce.pool` 配置（`spring.data.redis.lettuce.pool`）。这不影响主链路理解，但属于“配置一致性”可复盘点。
 - Redisson（分布式锁）
   - 依赖入口：`pom.xml` → `org.redisson:redisson`
-  - 客户端配置入口：`src/main/java/com/hmdp/config/RedissonConfig.java`（提供 3 个 `RedissonClient` Bean）
+  - 客户端配置入口：`src/main/java/com/xiangwang/config/RedissonConfig.java`（提供 3 个 `RedissonClient` Bean）
 - Lua 脚本（保证 Redis 侧原子性）
   - 秒杀脚本入口：`src/main/resources/seckill.lua`
   - 原子解锁脚本入口：`src/main/resources/unlock.lua`
@@ -60,80 +60,80 @@
 下面按“项目主线学习顺序”列出模块，并给出每个模块最关键的**入口类/方法**。
 
 ### 2.1 用户模块：验证码登录 + Token 续期 + 用户上下文
-- API 入口：`src/main/java/com/hmdp/controller/UserController.java`
+- API 入口：`src/main/java/com/xiangwang/controller/UserController.java`
   - `POST /user/code` → `sendCode()`
   - `POST /user/login` → `login()`
   - `GET /user/me` → `me()`
   - `POST /user/sign` → `sign()`（签到）
   - `GET /user/sign/count` → `signCount()`（连续签到）
-- 核心服务：`src/main/java/com/hmdp/service/impl/UserServiceImpl.java`
+- 核心服务：`src/main/java/com/xiangwang/service/impl/UserServiceImpl.java`
   - `sendCode(phone, session)`：验证码写 Redis
   - `login(loginForm, session)`：校验验证码 → 创建/查询用户 → 生成 token → 用户信息写入 Redis Hash
   - `sign()` / `signCount()`：Bitmap 签到/统计
-- 用户上下文（ThreadLocal）：`src/main/java/com/hmdp/utils/UserHolder.java`
-- 关键常量：`src/main/java/com/hmdp/utils/RedisConstants.java`
+- 用户上下文（ThreadLocal）：`src/main/java/com/xiangwang/utils/UserHolder.java`
+- 关键常量：`src/main/java/com/xiangwang/utils/RedisConstants.java`
 
 ### 2.2 店铺模块：缓存穿透/击穿/逻辑过期 + GEO 附近店铺
-- API 入口：`src/main/java/com/hmdp/controller/ShopController.java`
+- API 入口：`src/main/java/com/xiangwang/controller/ShopController.java`
   - `GET /shop/{id}` → `queryShopById()`
   - `PUT /shop` → `updateShop()`
   - `GET /shop/of/type` → `queryShopByType(typeId,current,x,y)`（含 GEO 查询分支）
-- 核心服务：`src/main/java/com/hmdp/service/impl/ShopServiceImpl.java`
+- 核心服务：`src/main/java/com/xiangwang/service/impl/ShopServiceImpl.java`
   - `queryById(id)`：主查询入口（优先逻辑过期，兜底穿透）
   - `queryWithLogicalExpire(id)`：逻辑过期（返回旧值 + 异步重建）
   - `saveShopRedis(id, expireSeconds)`：写逻辑过期结构
   - `queryWithPassThrough(id)`：缓存穿透（空值缓存）
   - `queryWithMutex(id)`：缓存击穿（互斥锁重建，递归重试）
   - `queryShopByType(typeId,current,x,y)`：Redis GEO radius 查询 + 回表 `ORDER BY FIELD` 保序
-- 逻辑过期载体：`src/main/java/com/hmdp/utils/RedisData.java`
+- 逻辑过期载体：`src/main/java/com/xiangwang/utils/RedisData.java`
 
 ### 2.3 店铺类型：列表缓存
-- API 入口：`src/main/java/com/hmdp/controller/ShopTypeController.java`
+- API 入口：`src/main/java/com/xiangwang/controller/ShopTypeController.java`
   - `GET /shop-type/list` → `queryTypeList()`
-- 服务入口：`src/main/java/com/hmdp/service/impl/ShopTypeServiceImpl.java`
+- 服务入口：`src/main/java/com/xiangwang/service/impl/ShopTypeServiceImpl.java`
   - `queryTypeListWithCache()`：String 缓存（JSON 列表）
 
 ### 2.4 博客模块：热门/详情/点赞/点赞榜
-- API 入口：`src/main/java/com/hmdp/controller/BlogController.java`
+- API 入口：`src/main/java/com/xiangwang/controller/BlogController.java`
   - `POST /blog` → `saveBlog()`
   - `PUT /blog/like/{id}` → `likeBlog()`
   - `GET /blog/hot` → `queryHotBlog()`
   - `GET /blog/{id}` → `queryBlogById()`
   - `GET /blog/likes/{id}` → `queryBlogLikes()`（点赞 Top 用户）
-- 服务入口：`src/main/java/com/hmdp/service/impl/BlogServiceImpl.java`
+- 服务入口：`src/main/java/com/xiangwang/service/impl/BlogServiceImpl.java`
   - `queryHotBlog(current)`：按 liked 倒序分页
   - `queryBlogById(id)`：补充作者信息 + 是否点赞
   - `likeBlog(id)`：DB liked +/-1 + Redis ZSet 增删
   - `queryBlogLikes(id)`：ZSet Top5 → 回表并通过 `ORDER BY FIELD` 保序
 
 ### 2.5 关注模块：关注/取关/共同关注
-- API 入口：`src/main/java/com/hmdp/controller/FollowController.java`
+- API 入口：`src/main/java/com/xiangwang/controller/FollowController.java`
   - `PUT /follow/{id}/{isFollow}` → `follow()`
   - `GET /follow/or/not/{id}` → `isFollow()`
   - `GET /follow/common/{id}` → `followCommons()`
-- 服务入口：`src/main/java/com/hmdp/service/impl/FollowServiceImpl.java`
+- 服务入口：`src/main/java/com/xiangwang/service/impl/FollowServiceImpl.java`
   - `follow(followUserId, isFollow)`：DB + Redis Set 同步
   - `followCommons(id)`：Redis Set 交集 → 回表用户信息
 
 ### 2.6 Feed 流：收件箱模型（ZSet）+ 滚动分页
-- 推送入口：`src/main/java/com/hmdp/service/impl/BlogServiceImpl.java`
+- 推送入口：`src/main/java/com/xiangwang/service/impl/BlogServiceImpl.java`
   - `saveBlog(blog)`：保存 blog 后，查询粉丝（Follow 表）并对每个粉丝的 `feed:{fanId}` ZSet `ZADD(blogId, timestamp)`
-- 拉取入口：`src/main/java/com/hmdp/controller/BlogController.java`
+- 拉取入口：`src/main/java/com/xiangwang/controller/BlogController.java`
   - `GET /blog/of/follow?lastId=&offset=` → `queryBlogFollow()`
-- 核心分页逻辑入口：`src/main/java/com/hmdp/service/impl/BlogServiceImpl.java`
+- 核心分页逻辑入口：`src/main/java/com/xiangwang/service/impl/BlogServiceImpl.java`
   - `queryBlogFollow(max, offset)`：
     - `ZREVRANGEBYSCORE`（含 score 返回）
     - 处理“同分数（同时间戳）”导致的重复问题（通过 offset）
     - 回表强制按 Redis 顺序返回（`ORDER BY FIELD`）
 
 ### 2.7 优惠券 + 秒杀：Lua 原子校验 + Redis Stream 异步下单 + 分布式锁
-- 优惠券 API：`src/main/java/com/hmdp/controller/VoucherController.java`
+- 优惠券 API：`src/main/java/com/xiangwang/controller/VoucherController.java`
   - `POST /voucher` → `addVoucher()`
   - `POST /voucher/seckill` → `addSeckillVoucher()`（秒杀券入库 + 预热 Redis 库存）
   - `GET /voucher/list/{shopId}` → `queryVoucherOfShop()`
-- 秒杀下单 API：`src/main/java/com/hmdp/controller/VoucherOrderController.java`
+- 秒杀下单 API：`src/main/java/com/xiangwang/controller/VoucherOrderController.java`
   - `POST /voucher-order/seckill/{id}` → `seckillVoucher()`
-- 秒杀核心服务：`src/main/java/com/hmdp/service/impl/VoucherOrderServiceImpl.java`
+- 秒杀核心服务：`src/main/java/com/xiangwang/service/impl/VoucherOrderServiceImpl.java`
   - `seckillVoucher(voucherId)`：执行 `seckill.lua`（库存校验/防重/扣库存/写 Stream）并返回 `orderId`
   - `@PostConstruct init()`：启动单线程消费者 `StreamOrderConsumer`
   - `StreamOrderConsumer.run()`：
@@ -143,23 +143,23 @@
   - `handleVoucherOrder(voucherOrder)`：Redisson 锁 `lock:order:{userId}` 防止并发重复落库
   - `createVoucherOrder(voucherOrder)`：事务方法（DB 防重 + 扣 MySQL 库存 + 保存订单）
 - 秒杀 Lua 入口：`src/main/resources/seckill.lua`
-- 秒杀券预热：`src/main/java/com/hmdp/service/impl/VoucherServiceImpl.java#addSeckillVoucher()`
+- 秒杀券预热：`src/main/java/com/xiangwang/service/impl/VoucherServiceImpl.java#addSeckillVoucher()`
   - 写 Redis 库存：`seckill:stock:{voucherId}`
   - 初始化用户集合：`seckill:order:{voucherId}`（注意：当前实现写入了一个空字符串成员，用于“建集合”，属于可优化点）
 
 ### 2.8 分布式锁：手写 Redis Lock vs Redisson
-- 手写锁接口：`src/main/java/com/hmdp/utils/ILock.java`
-- 手写锁实现：`src/main/java/com/hmdp/utils/SimpleRedisLock.java`
+- 手写锁接口：`src/main/java/com/xiangwang/utils/ILock.java`
+- 手写锁实现：`src/main/java/com/xiangwang/utils/SimpleRedisLock.java`
   - 加锁：`SETNX lock:{name} <uuid-threadId> EX <timeout>`
   - 解锁：执行 `unlock.lua` 原子校验归属并删除
-- Redisson 封装：`src/main/java/com/hmdp/utils/RedissonLock.java`
+- Redisson 封装：`src/main/java/com/xiangwang/utils/RedissonLock.java`
   - 基于 Redisson 的 `RLock`
 
 ### 2.9 上传模块：文件落盘（本地目录）
-- API 入口：`src/main/java/com/hmdp/controller/UploadController.java`
+- API 入口：`src/main/java/com/xiangwang/controller/UploadController.java`
   - `POST /upload/blog`：保存图片文件到 `SystemConstants.IMAGE_UPLOAD_DIR`
   - `GET /upload/blog/delete`：删除文件
-- 路径常量：`src/main/java/com/hmdp/utils/SystemConstants.java`
+- 路径常量：`src/main/java/com/xiangwang/utils/SystemConstants.java`
 
 ---
 
@@ -168,18 +168,18 @@
 > 这一节回答“一个 HTTP 请求进来之后，到底依次经过哪些组件？在哪里做了什么？”
 
 ### 3.1 全局入口
-- 启动类：`src/main/java/com/hmdp/HmDianPingApplication.java`
+- 启动类：`src/main/java/com/xiangwang/XiangWangApplication.java`
   - `@SpringBootApplication`
-  - `@MapperScan("com.hmdp.mapper")`
+  - `@MapperScan("com.xiangwang.mapper")`
   - `@EnableAspectJAutoProxy(exposeProxy = true)`：允许通过 AOP 代理调用（常见于事务/切面需要）
 
 ### 3.2 拦截器链（非常关键：登录态从哪里来？在哪里“续期”？）
-- 注册与顺序：`src/main/java/com/hmdp/config/MvcConfig.java`
+- 注册与顺序：`src/main/java/com/xiangwang/config/MvcConfig.java`
   - `RefreshTokenInterceptor`：`order(0)`，全路径 `/**`
   - `LoginInterceptor`：`order(1)`，对部分路径放行（`excludePathPatterns(...)`）
 
 #### 3.2.1 RefreshTokenInterceptor（Token 解析 + ThreadLocal 注入 + TTL 续期）
-- 入口：`src/main/java/com/hmdp/utils/RefreshTokenInterceptor.java#preHandle()`
+- 入口：`src/main/java/com/xiangwang/utils/RefreshTokenInterceptor.java#preHandle()`
 - 核心步骤：
   1. 从请求头读取 token：`authorization`
   2. Redis key：`login:token:{token}`（Hash）
@@ -190,7 +190,7 @@
 - 收尾：`afterCompletion()` 调用 `UserHolder.removeUser()` 防止线程复用导致的内存泄漏/串号
 
 #### 3.2.2 LoginInterceptor（仅做“是否已登录”的硬拦截）
-- 入口：`src/main/java/com/hmdp/utils/LoginInterceptor.java#preHandle()`
+- 入口：`src/main/java/com/xiangwang/utils/LoginInterceptor.java#preHandle()`
 - 判定方式：只看 `UserHolder.getUser()` 是否为空；为空直接 `response.setStatus(401)`
 
 > 复盘点：`MvcConfig` 当前对 `/blog/**` 做了放行，这意味着 **发布博客/点赞等也可能不需要登录**（取决于具体路径是否覆盖）。这在“学习环境”里可能是刻意放开，也可能是后续需要收敛的安全点。
@@ -201,9 +201,9 @@
 3. Service 内部：
    - 调用 `StringRedisTemplate` 读写 Redis
    - 或使用 MyBatis-Plus：`query()/update()/save()` 与数据库交互
-4. 返回统一包装：`Result.ok(...)` / `Result.fail(...)`（入口：`src/main/java/com/hmdp/dto/Result.java`）
+4. 返回统一包装：`Result.ok(...)` / `Result.fail(...)`（入口：`src/main/java/com/xiangwang/dto/Result.java`）
 5. 发生 `RuntimeException`：由全局异常处理返回失败
-   - 入口：`src/main/java/com/hmdp/config/WebExceptionAdvice.java`
+   - 入口：`src/main/java/com/xiangwang/config/WebExceptionAdvice.java`
 
 ---
 
@@ -223,7 +223,7 @@
 - GEO 店铺：`shop:geo:{typeId}`（GEO）
 - 签到：`sign:{userId}:{yyyyMM}`（Bitmap）
 
-> 常量入口：`src/main/java/com/hmdp/utils/RedisConstants.java`
+> 常量入口：`src/main/java/com/xiangwang/utils/RedisConstants.java`
 
 ### 4.2 Lua 脚本承担的“原子性边界”
 - `seckill.lua`：把“校验库存 + 防重复 + 扣库存 + 记录下单 + 投递 Stream”收敛在一次 Redis 原子执行里
@@ -239,7 +239,7 @@
 
 ### 4.4 MyBatis-Plus 关键点
 - 分页插件与防全表更新/删除插件
-  - 入口：`src/main/java/com/hmdp/config/MybatisConfig.java`
+  - 入口：`src/main/java/com/xiangwang/config/MybatisConfig.java`
 - 常见写法：
   - `query().eq(...).page(new Page<>(...))`
   - `update().setSql("stock = stock - 1").gt("stock",0).update()`（乐观式扣减）
@@ -379,7 +379,7 @@
 
 ## 7. 附：最常用的“定位入口索引”
 
-- 启动与扫描：`HmDianPingApplication`
+- 启动与扫描：`XiangWangApplication`
 - Web 拦截器链：`MvcConfig` → `RefreshTokenInterceptor` → `LoginInterceptor`
 - Redis Key 常量：`RedisConstants`
 - 店铺缓存：`ShopServiceImpl`
@@ -387,5 +387,5 @@
 - 关注：`FollowServiceImpl`
 - 秒杀：`VoucherOrderServiceImpl` + `seckill.lua`
 - 解锁脚本：`SimpleRedisLock` + `unlock.lua`
-- 表结构参考：`src/main/resources/db/hmdp.sql`
+- 表结构参考：`src/main/resources/db/xiangwang.sql`
 

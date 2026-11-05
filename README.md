@@ -1,4 +1,4 @@
-# 巷往生活服务平台（hm-dianping）
+# 巷往生活服务平台
 
 > 本地生活 O2O 服务平台 · 高并发秒杀场景实践
 
@@ -99,7 +99,7 @@ docker run -d --name redis -p 6379:6379 redis:7 \
 
 docker run -d --name mysql -p 3306:3306 \
   -e MYSQL_ROOT_PASSWORD=your-mysql-password \
-  -e MYSQL_DATABASE=hm_dianping mysql:8.0
+  -e MYSQL_DATABASE=xiangwang mysql:8.0
 
 docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 \
   -e RABBITMQ_DEFAULT_USER=admin \
@@ -112,7 +112,7 @@ docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 \
 ### 2. 导入数据库
 
 ```bash
-mysql -uroot -p hm_dianping < sql/hm_dianping.sql
+mysql -uroot -p xiangwang < sql/xiangwang.sql
 ```
 
 ### 3. 配置环境变量
@@ -142,7 +142,7 @@ mvn spring-boot:run
 ## 目录结构
 
 ```
-src/main/java/com/hmdp/
+src/main/java/com/xiangwang/
 ├── config/          # Redisson 多节点、RabbitMQ 队列与死信、MVC 拦截器注册
 ├── controller/      # 商户、优惠券、订单、博客、关注等接口
 ├── mq/              # 秒杀订单消费者 + 死信队列监听

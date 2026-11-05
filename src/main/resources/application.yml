@@ -2,12 +2,12 @@ server:
   port: 8081
 spring:
   application:
-    name: hmdp
+    name: xiangwang-life
   main:
     allow-circular-references: true  # 解决循环依赖报错
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:hm_dianping}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=utf8
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:xiangwang}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=utf8
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:changeme}
   data:
@@ -48,9 +48,9 @@ spring:
         # 消费者异常时不无限重试，交给业务代码控制重试次数
         default-requeue-rejected: false
 mybatis-plus:
-  type-aliases-package: com.hmdp.entity
+  type-aliases-package: com.xiangwang.entity
   configuration:
       map-underscore-to-camel-case: true # 开启下划线转驼峰，必加！
 logging:
   level:
-    com.hmdp: debug
+    com.xiangwang: debug
